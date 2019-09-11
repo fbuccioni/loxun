@@ -637,7 +637,7 @@ class XmlWriter(object):
     _nameStartCharRegEx = re.compile(_NAME_START_CHAR_PATTERN, re.UNICODE)
     _nameCharRegEx = re.compile(_NAME_START_CHAR_PATTERN, re.UNICODE)
 
-    def __init__(self, output, pretty=True, indent="  ", newline=os.linesep, encoding="utf-8", errors="strict", prolog=True, version="1.0", sourceEncoding="ascii"):
+    def __init__(self, output, pretty=True, prettyText=None, indent="  ", newline=os.linesep, encoding="utf-8", errors="strict", prolog=True, version="1.0", sourceEncoding="ascii"):
         """
         Initialize ``XmlWriter`` writing to ``output``.
 
@@ -680,9 +680,12 @@ class XmlWriter(object):
         assert encoding
         assert errors
         assert sourceEncoding
+
         _validateNotNoneOrEmpty("version", version)
         self._output = output
         self._pretty = pretty
+        self._prettyText = pretty if prettyText is None else prettyText
+        self._dontNewlineFirst = False
         self._sourceEncoding = sourceEncoding
         self._encoding = self._unicodedFromString(encoding)
         self._errors = self._unicodedFromString(errors)
@@ -897,6 +900,8 @@ class XmlWriter(object):
             self._writeIndent()
 
     def _writePrettyNewline(self):
+        if self._dontNewlineFirst:
+            self._dontNewlineFirst = False
         if self._pretty:
             self.newline()
 
@@ -997,7 +1002,11 @@ class XmlWriter(object):
         assert close
         assert close in (XmlWriter._CLOSE_NONE, XmlWriter._CLOSE_AT_START, XmlWriter._CLOSE_AT_END)
         assert attributes is not None
-        if self._pretty:
+
+        if self._dontNewlineFirst:
+            self._dontNewlineFirst = False
+        elif self._pretty:
+            self.newline()
             self._write(indent)
         self._write("<")
         if close == XmlWriter._CLOSE_AT_START:
@@ -1013,8 +1022,8 @@ class XmlWriter(object):
                 self._write(" ")
             self._write("/")
         self._write(">")
-        if self._pretty:
-            self.newline()
+#        if self._pretty:
+#            self.newline()
 
     def _possiblyFlushTag(self):
         """
@@ -1226,14 +1235,15 @@ class XmlWriter(object):
         self._possiblyFlushTag()
         _validateNotNone("text", text)
         uniText = self._unicodedFromString(text)
-        if self._pretty:
+        if self._prettyText:
+            self.newline()
             for uniLine in io.StringIO(uniText):
                 self._writeIndent()
                 uniLine = uniLine.lstrip(" \t").rstrip(" \t\r\n")
                 self._writeEscaped(uniLine)
-                self.newline()
         else:
             self._writeEscaped(uniText)
+            self._dontNewlineFirst = True
 
 
     def comment(self, text, embedInBlanks=True):
@@ -1369,11 +1379,15 @@ class XmlWriter(object):
         uniText = self._unicodedFromString(text)
         if end in uniText:
             raise XmlError("text for %s must not contain \"%s\"" % (name, end))
-        self._writePrettyIndent()
+        if name == "CDATA section" and self._prettyText:
+            self.newline()
+            self._writePrettyIndent()
         self._write(start)
         self._write(uniText)
         self._write(end)
-        self._writePrettyNewline()
+
+        if name == "CDATA section" and not self._prettyText:
+            self._dontNewlineFirst = True
 
     def raw(self, text):
         """

@@ -865,9 +865,10 @@ class XmlWriter(object):
             raise XmlError("operation must be performed before writer is closed")
 
     def _validateNamespaceItem(self, itemName, namespace, qualifiedName):
-        if namespace:
+        if namespace and namespace != 'xml':
             namespaceFound = False
             scopeIndex = self._scope()
+
             while not namespaceFound and (scopeIndex >= 0):
                 namespacesForScope = self._namespaces.get(scopeIndex)
                 if namespacesForScope:
